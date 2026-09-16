@@ -1,5 +1,18 @@
 # Compact — краткий технический дизайн
 
+Проработка следующего этапа рекомендательного ядра вынесена в отдельные
+документы:
+
+- [`docs/RECOMMENDATION_RESEARCH.md`](docs/RECOMMENDATION_RESEARCH.md) — разбор
+  источников, лицензий и применимых практик;
+- [`docs/RECOMMENDATION_ARCHITECTURE.md`](docs/RECOMMENDATION_ARCHITECTURE.md) —
+  целевой алгоритм, фильтры, scoring, diversity и ограничения LG;
+- [`docs/RECOMMENDATION_IMPLEMENTATION_PLAN.md`](docs/RECOMMENDATION_IMPLEMENTATION_PLAN.md)
+  — этапы внедрения и измеримые критерии готовности.
+
+Эти документы описывают план развития; рабочий runtime версии 0.2.1 ими не
+изменяется.
+
 ## Цель
 
 `compact.js` — самостоятельный каталог для Lampa на webOS 3.5 / Chromium 38. Он не
