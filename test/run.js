@@ -101,7 +101,8 @@ function makeEnvironment(options) {
             }
         },
         TMDB: {
-            api: function (url) { return 'https://tmdb.test/' + url; }
+            api: function (url) { return 'https://tmdb.test/' + url; },
+            image: function (url) { return 'https://image.tmdb.test/' + url; }
         },
         Maker: {
             make: function (type, data) {
@@ -243,10 +244,12 @@ test('registers settings, source and eight ordered rows', function () {
         env.rows[0].call()(function (data) { navigation = data; });
         env.rows[1].call()(function (data) { providers = data; });
         env.rows[2].call()(function (data) { genres = data; });
-        assert(navigation.results[0].poster.indexOf('data:image/svg+xml') === 0);
+        assert.strictEqual(navigation.results[0].poster, undefined);
         assert.strictEqual(navigation.results[0].poster_path, undefined);
-        assert(providers.results[0].poster.indexOf('data:image/svg+xml') === 0);
+        assert.strictEqual(providers.results[0].poster, undefined);
         assert.strictEqual(providers.results[0].poster_path, undefined);
+        assert(providers.results[0].compact_logo.indexOf('https://image.tmdb.test/') === 0);
+        assert.strictEqual(providers.results[0].compact_display_title, 'Netflix');
         assert.strictEqual(providers.params.items.mapping, 'line');
         assert.strictEqual(genres.params.items.mapping, 'line');
         assert.strictEqual(providers.results[0].compact_kind, 'provider');

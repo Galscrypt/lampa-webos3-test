@@ -10,7 +10,7 @@
     if (!window || window.plugin_compact_ready) return;
     window.plugin_compact_ready = true;
 
-    var VERSION = '0.2.0';
+    var VERSION = '0.2.1';
     var SOURCE = 'compact';
     var CACHE_PREFIX = 'compact_cache_v1_';
     var CACHE_INDEX = 'compact_cache_v1_index';
@@ -187,38 +187,14 @@
         return query.join('&');
     }
 
-    function escapeXml(text) {
-        return stringValue(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
-    }
-
-    function badgeData(title, color, subtitle, kind) {
-        var safe = escapeXml(title);
-        var safeSubtitle = escapeXml(subtitle || '');
-        var size = title.length > 18 ? 19 : (title.length > 12 ? 23 : 28);
-        var letter = escapeXml(title.charAt(0).toUpperCase());
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="203" viewBox="0 0 360 203">';
-        if (kind === 'provider') {
-            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="white" fill-opacity=".08" stroke="white" stroke-opacity=".14" stroke-width="2"/>' +
-                '<text x="180" y="105" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
-                '<rect x="130" y="139" width="100" height="5" rx="2.5" fill="' + color + '"/>';
-        } else if (kind === 'genre') {
-            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="black" fill-opacity=".18" stroke="white" stroke-opacity=".12" stroke-width="2"/>' +
-                '<circle cx="67" cy="83" r="34" fill="' + color + '"/>' +
-                '<text x="67" y="85" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="30" font-weight="700">' + letter + '</text>' +
-                '<text x="116" y="82" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
-                '<text x="116" y="119" fill="white" fill-opacity=".62" font-family="Arial,sans-serif" font-size="15">' + safeSubtitle + '</text>';
-        } else {
-            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="' + color + '" fill-opacity=".82" stroke="white" stroke-opacity=".2" stroke-width="2"/>' +
-                '<text x="180" y="88" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
-                '<text x="180" y="128" text-anchor="middle" fill="white" fill-opacity=".7" font-family="Arial,sans-serif" font-size="15">' + safeSubtitle + '</text>';
-        }
-        svg += '</svg>';
-        return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    function providerLogoUrl(path) {
+        if (!path) return '';
+        try {
+            if (Lampa && Lampa.TMDB && Lampa.TMDB.image) {
+                return Lampa.TMDB.image('t/p/w300' + path);
+            }
+        } catch (error) {}
+        return 'https://image.tmdb.org/t/p/w300' + path;
     }
 
     function makeActionInstance(data) {
@@ -227,10 +203,62 @@
         });
     }
 
-    function styleActionInstance(instance, kind) {
+    function actionContent(instance, card) {
+        var root;
+        var view;
+        var content;
+        var logo;
+        var mark;
+        var title;
+        var subtitle;
+        var accent;
+        if (typeof document === 'undefined' || !card) return;
+        root = instance && instance.html ? instance.html[0] : null;
+        if (!root || !root.querySelector) return;
+        view = root.querySelector('.card__view');
+        if (!view || view.querySelector('.compact-action-card__content')) return;
+
+        content = document.createElement('div');
+        content.className = 'compact-action-card__content compact-action-card__content--' + card.compact_kind;
+
+        if (card.compact_kind === 'provider' && card.compact_logo) {
+            logo = document.createElement('img');
+            logo.className = 'compact-action-card__logo';
+            logo.src = card.compact_logo;
+            logo.alt = card.compact_display_title;
+            content.appendChild(logo);
+        } else if (card.compact_kind === 'genre') {
+            mark = document.createElement('span');
+            mark.className = 'compact-action-card__mark';
+            mark.style.backgroundColor = card.compact_color;
+            mark.appendChild(document.createTextNode(card.compact_display_title.charAt(0).toUpperCase()));
+            content.appendChild(mark);
+        }
+
+        title = document.createElement('span');
+        title.className = 'compact-action-card__label';
+        title.appendChild(document.createTextNode(card.compact_display_title));
+        content.appendChild(title);
+
+        if (card.compact_display_subtitle) {
+            subtitle = document.createElement('span');
+            subtitle.className = 'compact-action-card__subtitle';
+            subtitle.appendChild(document.createTextNode(card.compact_display_subtitle));
+            content.appendChild(subtitle);
+        }
+
+        accent = document.createElement('span');
+        accent.className = 'compact-action-card__accent';
+        accent.style.backgroundColor = card.compact_color;
+        content.appendChild(accent);
+        view.appendChild(content);
+    }
+
+    function styleActionInstance(instance, card) {
         if (!instance || !instance.html || !instance.html.addClass) return;
         instance.html.addClass('compact-action-card');
-        instance.html.addClass('compact-action-card--' + kind);
+        instance.html.addClass('compact-action-card--' + card.compact_kind);
+        actionContent(instance, card);
     }
 
     function actionRowParams() {
@@ -247,9 +275,18 @@
         var style;
         if (typeof document === 'undefined' || document.getElementById('compact-action-styles')) return;
         css = '.compact-action-card{width:13em!important}' +
-            '.compact-action-card .card__view{padding-bottom:56.25%!important;border-radius:1em!important;overflow:hidden!important;background:rgba(255,255,255,.1)!important}' +
-            '.compact-action-card .card__img{object-fit:cover!important}' +
+            '.compact-action-card .card__view{padding-bottom:56.25%!important;border-radius:1em!important;overflow:hidden!important;background:rgba(255,255,255,.12)!important}' +
+            '.compact-action-card .card__img,.compact-action-card .card__loader{display:none!important}' +
             '.compact-action-card .card__title,.compact-action-card .card__age,.compact-action-card .card__vote{display:none!important}' +
+            '.compact-action-card__content{position:absolute;z-index:2;top:0;right:0;bottom:0;left:0;display:flex;box-sizing:border-box;align-items:center;justify-content:center;flex-direction:column;padding:1em;text-align:center;color:#fff;background:rgba(12,20,32,.28)}' +
+            '.compact-action-card__content--navigation{background:rgba(22,35,52,.7)}' +
+            '.compact-action-card__content--genre{align-items:flex-start;padding-left:4.5em;text-align:left;background:rgba(12,20,32,.46)}' +
+            '.compact-action-card__logo{display:block;max-width:68%;max-height:48%;margin:0 auto .55em;object-fit:contain;border-radius:.25em}' +
+            '.compact-action-card__label{display:block;max-width:100%;font-size:1.05em;font-weight:700;line-height:1.12;white-space:normal}' +
+            '.compact-action-card--provider .compact-action-card__label{font-size:.82em;opacity:.82}' +
+            '.compact-action-card__subtitle{display:block;margin-top:.35em;font-size:.67em;line-height:1.1;opacity:.62}' +
+            '.compact-action-card__mark{position:absolute;left:1em;top:50%;width:2.65em;height:2.65em;margin-top:-1.325em;border-radius:50%;font-size:1.15em;font-weight:700;line-height:2.65em;text-align:center}' +
+            '.compact-action-card__accent{position:absolute;left:34%;right:34%;bottom:.65em;height:.18em;border-radius:.15em}' +
             '.compact-action-card.focus .card__view,.compact-action-card.hover .card__view{background:rgba(255,255,255,.2)!important}' +
             '.compact-action-card.focus .card__view:after{border-radius:1em!important}' +
             '@media screen and (max-width:767px){.compact-action-card{width:9.5em!important}}';
@@ -264,7 +301,6 @@
         var kind = logo ? 'provider' : (route.indexOf('compact:genre:') === 0 ? 'genre' : 'navigation');
         var displayTitle = kind === 'genre' ? title.replace(/ ·.*$/, '') : title;
         var displaySubtitle = kind === 'genre' ? (route.indexOf(':tv:') !== -1 ? 'Сериалы' : 'Фильмы') : subtitle;
-        var image = badgeData(displayTitle, color, displaySubtitle, kind);
         var card = {
             id: -100000 - id,
             compact_navigation: true,
@@ -274,6 +310,10 @@
             original_title: subtitle || title,
             overview: subtitle || '',
             compact_kind: kind,
+            compact_color: color,
+            compact_logo: providerLogoUrl(logo),
+            compact_display_title: displayTitle,
+            compact_display_subtitle: displaySubtitle,
             source: SOURCE,
             media_type: 'movie',
             vote_average: 0,
@@ -283,7 +323,7 @@
                 },
                 emit: {
                     onCreate: function () {
-                        styleActionInstance(this, kind);
+                        styleActionInstance(this, card);
                     },
                     onlyEnter: function () {
                         openNavigation(card);
@@ -291,9 +331,6 @@
                 }
             }
         };
-        card.poster = image;
-        card.img = image;
-        card.background_image = image;
         return card;
     }
 
