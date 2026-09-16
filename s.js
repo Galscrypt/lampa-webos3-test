@@ -586,6 +586,60 @@
     return partsData;
   }
 
+  /*
+   * Быстрая загрузка рядов для старых телевизоров.
+   * Штатный Lampa.Api.partNext продолжает перебирать следующие пачки, пока не
+   * получит минимум три непустых ответа. Если TMDB/прокси отвечает с ошибкой,
+   * несколько 30-секундных таймаутов складываются в минуты. Для SURS достаточно
+   * показать уже полученные ряды, а остальные подгрузить следующим вызовом.
+   */
+  function sursPartNext(parts, partsLimit, partLoaded, partEmpty) {
+    var pieces = parts.filter(function (part) {
+      return typeof part === 'function';
+    }).slice(0, partsLimit);
+    if (!pieces.length) {
+      partEmpty();
+      return;
+    }
+    var results = [];
+    var finished = 0;
+    var settled = false;
+    var timer = setTimeout(function () {
+      settle();
+    }, 7000);
+    function settle() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      for (var i = 0; i < pieces.length; i++) {
+        var index = parts.indexOf(pieces[i]);
+        if (index !== -1) parts[index] = false;
+      }
+      var data = results.filter(function (result) {
+        return result && result.results && result.results.length;
+      });
+      if (data.length) partLoaded(data);else partEmpty();
+    }
+    pieces.forEach(function (piece, index) {
+      var called = false;
+      function done(data) {
+        if (called || settled) return;
+        called = true;
+        results[index] = data;
+        finished++;
+        var ready = results.filter(function (result) {
+          return result && result.results && result.results.length;
+        }).length;
+        if (ready >= 3 || finished === pieces.length) settle();
+      }
+      try {
+        piece(done);
+      } catch (error) {
+        done(null);
+      }
+    });
+  }
+
   /* * Обертки для вставки строк стримингов в combinedData */
   function makeStreamingRowWrapper(getRowFn) {
     return function () {
@@ -1021,7 +1075,7 @@
           combinedData.splice(idx3, 2, genresRow());
         }
         function loadPart(partLoaded, partEmpty) {
-          Lampa.Api.partNext(combinedData, partsLimit, partLoaded, partEmpty);
+          sursPartNext(combinedData, partsLimit, partLoaded, partEmpty);
         }
         loadPart(onComplete, onError);
         return loadPart;
@@ -1182,7 +1236,7 @@
         shuffleArray(CustomData);
         var combinedData = partsData.concat(CustomData);
         function loadPart(partLoaded, partEmpty) {
-          Lampa.Api.partNext(combinedData, partsLimit, partLoaded, partEmpty);
+          sursPartNext(combinedData, partsLimit, partLoaded, partEmpty);
         }
         loadPart(onComplete, onError);
         return loadPart;
@@ -1879,7 +1933,7 @@
         shuffleArray(partsData);
         var combinedData = buttonsData.concat(partsData);
         function loadPart(partLoaded, partEmpty) {
-          Lampa.Api.partNext(combinedData, partsLimit, partLoaded, partEmpty);
+          sursPartNext(combinedData, partsLimit, partLoaded, partEmpty);
         }
         loadPart(onComplete, onError);
         return loadPart;
@@ -2047,7 +2101,7 @@
         shuffleArray(partsData);
         var combinedData = buttonsData.concat(partsData);
         function loadPart(partLoaded, partEmpty) {
-          Lampa.Api.partNext(combinedData, partsLimit, partLoaded, partEmpty);
+          sursPartNext(combinedData, partsLimit, partLoaded, partEmpty);
         }
         loadPart(onComplete, onError);
         return loadPart;
@@ -5736,34 +5790,4 @@ window.surs_clearExternalButtons();
     });
   }
   window.SursSelect.showSursSelectMenu = showSursSelectMenu;
-})();
-
-(function () {
-    'use strict';
-    if (!window.Lampa || Lampa.Manifest.app_digital < 300) return;
-
-    function refreshMainOnce() {
-        if (window.surs_legacy_v3_main_refresh_scheduled) return;
-        window.surs_legacy_v3_main_refresh_scheduled = true;
-
-        setTimeout(function () {
-            var active = Lampa.Activity.active ? Lampa.Activity.active() : null;
-            if (!active || active.component !== 'main') return;
-
-            Lampa.Activity.push({
-                source: active.source || Lampa.Storage.get('source'),
-                title: active.title || Lampa.Lang.translate('title_main'),
-                component: 'main',
-                page: 1
-            });
-        }, 900);
-    }
-
-    if (window.appready) {
-        refreshMainOnce();
-    } else {
-        Lampa.Listener.follow('app', function (event) {
-            if (event.type === 'ready') refreshMainOnce();
-        });
-    }
 })();
