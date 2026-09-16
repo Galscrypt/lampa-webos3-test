@@ -10,7 +10,7 @@
     if (!window || window.plugin_compact_ready) return;
     window.plugin_compact_ready = true;
 
-    var VERSION = '0.1.1';
+    var VERSION = '0.2.0';
     var SOURCE = 'compact';
     var CACHE_PREFIX = 'compact_cache_v1_';
     var CACHE_INDEX = 'compact_cache_v1_index';
@@ -196,20 +196,75 @@
             .replace(/'/g, '&apos;');
     }
 
-    function badgeData(title, color, small) {
+    function badgeData(title, color, subtitle, kind) {
         var safe = escapeXml(title);
-        var size = small ? 23 : 29;
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="342" height="513" viewBox="0 0 342 513">' +
-            '<rect width="342" height="513" rx="28" fill="' + color + '"/>' +
-            '<rect x="16" y="16" width="310" height="481" rx="22" fill="none" stroke="white" stroke-opacity=".22" stroke-width="3"/>' +
-            '<text x="171" y="247" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
-            '<text x="171" y="292" text-anchor="middle" fill="white" fill-opacity=".72" font-family="Arial,sans-serif" font-size="16">COMPACT</text>' +
-            '</svg>';
+        var safeSubtitle = escapeXml(subtitle || '');
+        var size = title.length > 18 ? 19 : (title.length > 12 ? 23 : 28);
+        var letter = escapeXml(title.charAt(0).toUpperCase());
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="203" viewBox="0 0 360 203">';
+        if (kind === 'provider') {
+            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="white" fill-opacity=".08" stroke="white" stroke-opacity=".14" stroke-width="2"/>' +
+                '<text x="180" y="105" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
+                '<rect x="130" y="139" width="100" height="5" rx="2.5" fill="' + color + '"/>';
+        } else if (kind === 'genre') {
+            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="black" fill-opacity=".18" stroke="white" stroke-opacity=".12" stroke-width="2"/>' +
+                '<circle cx="67" cy="83" r="34" fill="' + color + '"/>' +
+                '<text x="67" y="85" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="30" font-weight="700">' + letter + '</text>' +
+                '<text x="116" y="82" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
+                '<text x="116" y="119" fill="white" fill-opacity=".62" font-family="Arial,sans-serif" font-size="15">' + safeSubtitle + '</text>';
+        } else {
+            svg += '<rect x="8" y="8" width="344" height="187" rx="24" fill="' + color + '" fill-opacity=".82" stroke="white" stroke-opacity=".2" stroke-width="2"/>' +
+                '<text x="180" y="88" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial,sans-serif" font-size="' + size + '" font-weight="700">' + safe + '</text>' +
+                '<text x="180" y="128" text-anchor="middle" fill="white" fill-opacity=".7" font-family="Arial,sans-serif" font-size="15">' + safeSubtitle + '</text>';
+        }
+        svg += '</svg>';
         return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
     }
 
+    function makeActionInstance(data) {
+        return Lampa.Maker.make('Card', data, function (module) {
+            return module.only('Card', 'Callback');
+        });
+    }
+
+    function styleActionInstance(instance, kind) {
+        if (!instance || !instance.html || !instance.html.addClass) return;
+        instance.html.addClass('compact-action-card');
+        instance.html.addClass('compact-action-card--' + kind);
+    }
+
+    function actionRowParams() {
+        return {
+            items: {
+                view: 20,
+                mapping: 'line'
+            }
+        };
+    }
+
+    function injectCompactStyles() {
+        var css;
+        var style;
+        if (typeof document === 'undefined' || document.getElementById('compact-action-styles')) return;
+        css = '.compact-action-card{width:13em!important}' +
+            '.compact-action-card .card__view{padding-bottom:56.25%!important;border-radius:1em!important;overflow:hidden!important;background:rgba(255,255,255,.1)!important}' +
+            '.compact-action-card .card__img{object-fit:cover!important}' +
+            '.compact-action-card .card__title,.compact-action-card .card__age,.compact-action-card .card__vote{display:none!important}' +
+            '.compact-action-card.focus .card__view,.compact-action-card.hover .card__view{background:rgba(255,255,255,.2)!important}' +
+            '.compact-action-card.focus .card__view:after{border-radius:1em!important}' +
+            '@media screen and (max-width:767px){.compact-action-card{width:9.5em!important}}';
+        style = document.createElement('style');
+        style.id = 'compact-action-styles';
+        style.type = 'text/css';
+        style.appendChild(document.createTextNode(css));
+        (document.head || document.body).appendChild(style);
+    }
+
     function navigationCard(id, title, color, route, subtitle, logo) {
-        var image = logo || badgeData(title, color, title.length > 14);
+        var kind = logo ? 'provider' : (route.indexOf('compact:genre:') === 0 ? 'genre' : 'navigation');
+        var displayTitle = kind === 'genre' ? title.replace(/ ·.*$/, '') : title;
+        var displaySubtitle = kind === 'genre' ? (route.indexOf(':tv:') !== -1 ? 'Сериалы' : 'Фильмы') : subtitle;
+        var image = badgeData(displayTitle, color, displaySubtitle, kind);
         var card = {
             id: -100000 - id,
             compact_navigation: true,
@@ -218,25 +273,27 @@
             name: title,
             original_title: subtitle || title,
             overview: subtitle || '',
+            compact_kind: kind,
             source: SOURCE,
             media_type: 'movie',
             vote_average: 0,
             params: {
+                createInstance: function () {
+                    return makeActionInstance(this);
+                },
                 emit: {
+                    onCreate: function () {
+                        styleActionInstance(this, kind);
+                    },
                     onlyEnter: function () {
                         openNavigation(card);
                     }
                 }
             }
         };
-        if (logo) {
-            card.poster_path = logo;
-            card.backdrop_path = logo;
-        } else {
-            card.poster = image;
-            card.img = image;
-            card.background_image = image;
-        }
+        card.poster = image;
+        card.img = image;
+        card.background_image = image;
         return card;
     }
 
@@ -818,9 +875,10 @@
 
     function makeMainNavigation() {
         return {
-            title: 'Compact — разделы',
+            title: '',
             page: 1,
             total_pages: 1,
+            params: actionRowParams(),
             results: [
                 navigationCard(1, 'Новинки', '#295c82', 'compact:new:all:recent:new', 'Фильмы и сериалы'),
                 navigationCard(2, 'Русское', '#8a3f34', 'compact:russian:all:ru:new', 'Новые фильмы и сериалы'),
@@ -837,7 +895,7 @@
                 'compact:provider:all:' + providers[i].id + ':popular:' + providers[i].region,
                 'Доступность: JustWatch', providers[i].logo));
         }
-        return { title: title, page: 1, total_pages: 1, results: results };
+        return { title: title, page: 1, total_pages: 1, results: results, params: actionRowParams() };
     }
 
     function makeGenreRow() {
@@ -851,7 +909,13 @@
             results.push(navigationCard(400 + i, TV_GENRES[i].title + ' · ТВ', TV_GENRES[i].color,
                 'compact:genre:tv:' + TV_GENRES[i].id + ':popular', 'Жанр сериалов'));
         }
-        return { title: 'Compact — жанры', page: 1, total_pages: 1, results: results };
+        return {
+            title: 'Жанры',
+            page: 1,
+            total_pages: 1,
+            results: results,
+            params: actionRowParams()
+        };
     }
 
     function currentTheme() {
@@ -869,14 +933,14 @@
     function registerRows() {
         var theme;
         if (!Lampa.ContentRows || !Lampa.ContentRows.add) return;
-        addStaticRow(10, 'compact_navigation', 'compact_navigation', 'Compact — разделы', makeMainNavigation);
-        addStaticRow(20, 'compact_global', 'compact_global', 'Мировые сервисы · данные JustWatch', function () {
-            return makeProviderRow('Compact — мировые сервисы · данные JustWatch', GLOBAL_PROVIDERS, 100);
+        addStaticRow(10, 'compact_navigation', 'compact_navigation', 'Разделы', makeMainNavigation);
+        addStaticRow(20, 'compact_global', 'compact_global', 'Мировые сервисы · JustWatch', function () {
+            return makeProviderRow('Мировые сервисы · JustWatch', GLOBAL_PROVIDERS, 100);
         });
-        addStaticRow(30, 'compact_russian', 'compact_russian', 'Российские сервисы · данные JustWatch', function () {
-            return makeProviderRow('Compact — российские сервисы · данные JustWatch', RUSSIAN_PROVIDERS, 200);
+        addStaticRow(30, 'compact_genres', 'compact_genres', 'Жанры', makeGenreRow);
+        addStaticRow(40, 'compact_russian', 'compact_russian', 'Российские сервисы · JustWatch', function () {
+            return makeProviderRow('Российские сервисы · JustWatch', RUSSIAN_PROVIDERS, 200);
         });
-        addStaticRow(40, 'compact_genres', 'compact_genres', 'Compact — жанры', makeGenreRow);
         addNetworkRow(50, 'compact_trend_movie', 'compact_trend_movie',
             'Тренды недели — фильмы', 'compact:trend:movie:week:popular');
         addNetworkRow(60, 'compact_trend_tv', 'compact_trend_tv',
@@ -980,9 +1044,16 @@
         return !!(Lampa.Storage && Lampa.Storage.get && Lampa.Storage.set &&
             Lampa.TMDB && Lampa.TMDB.api &&
             Lampa.Api &&
+            Lampa.Maker && Lampa.Maker.make &&
             Lampa.ContentRows && Lampa.ContentRows.add &&
             Lampa.Activity && Lampa.Activity.push &&
             (Lampa.Request || Lampa.Reguest));
+    }
+
+    function disableShots() {
+        try {
+            Lampa.Storage.set('content_rows_shots_main', 'false');
+        } catch (error) {}
     }
 
     function start() {
@@ -997,6 +1068,8 @@
             return;
         }
         started = true;
+        disableShots();
+        injectCompactStyles();
         registerSettings();
         registerSource();
         if (settingOn('compact_enabled')) registerRows();

@@ -103,6 +103,18 @@ function makeEnvironment(options) {
         TMDB: {
             api: function (url) { return 'https://tmdb.test/' + url; }
         },
+        Maker: {
+            make: function (type, data) {
+                var classes = [];
+                return {
+                    data: data,
+                    __classes: classes,
+                    html: {
+                        addClass: function (name) { classes.push(name); }
+                    }
+                };
+            }
+        },
         Api: { sources: {} },
         ContentRows: opts.withoutContentRows ? null : {
             add: function (row) { rows.push(row); }
@@ -167,6 +179,7 @@ test('registers settings, source and eight ordered rows', function () {
         [10, 20, 30, 40, 50, 60, 70, 80]);
     assert(env.rows.every(function (row) { return !!row.title; }));
     assert(env.rows.every(function (row) { return !row.onInstance; }));
+    assert.strictEqual(env.storage.content_rows_shots_main, 'false');
 }).then(function () {
     return test('honors the master switch without removing the source', function () {
         var env = makeEnvironment({ initialStorage: { compact_enabled: false } });
@@ -186,6 +199,7 @@ test('registers settings, source and eight ordered rows', function () {
         assert.strictEqual(called, true);
         assert.strictEqual(output.results.length, 3);
         assert.strictEqual(output.results[0].compact_route, 'compact:new:all:recent:new');
+        assert.strictEqual(output.params.items.mapping, 'line');
     });
 }).then(function () {
     return test('opens provider sorting and a paginated category from the remote handler', function () {
@@ -220,16 +234,27 @@ test('registers settings, source and eight ordered rows', function () {
         });
     });
 }).then(function () {
-    return test('uses local image fields for SVG badges and TMDB paths for provider logos', function () {
+    return test('uses wide custom cards for navigation, providers and genres', function () {
         var env = makeEnvironment();
         var navigation;
         var providers;
+        var genres;
+        var instance;
         env.rows[0].call()(function (data) { navigation = data; });
         env.rows[1].call()(function (data) { providers = data; });
+        env.rows[2].call()(function (data) { genres = data; });
         assert(navigation.results[0].poster.indexOf('data:image/svg+xml') === 0);
         assert.strictEqual(navigation.results[0].poster_path, undefined);
-        assert(providers.results[0].poster_path.indexOf('/') === 0);
-        assert.strictEqual(providers.results[0].poster, undefined);
+        assert(providers.results[0].poster.indexOf('data:image/svg+xml') === 0);
+        assert.strictEqual(providers.results[0].poster_path, undefined);
+        assert.strictEqual(providers.params.items.mapping, 'line');
+        assert.strictEqual(genres.params.items.mapping, 'line');
+        assert.strictEqual(providers.results[0].compact_kind, 'provider');
+        assert.strictEqual(genres.results[0].compact_kind, 'genre');
+        instance = providers.results[0].params.createInstance.call(providers.results[0]);
+        providers.results[0].params.emit.onCreate.call(instance);
+        assert(instance.__classes.indexOf('compact-action-card') !== -1);
+        assert(instance.__classes.indexOf('compact-action-card--provider') !== -1);
         assert(providers.title.indexOf('JustWatch') !== -1);
     });
 }).then(function () {
